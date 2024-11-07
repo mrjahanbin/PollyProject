@@ -1,21 +1,18 @@
 ﻿using Polly;
-using Polly.Bulkhead;
 using Polly.CircuitBreaker;
 using Polly.Timeout;
-using System;
-using System.Net.Http;
-using System.Threading.Tasks;
 
 #region 0
-//0
+
 //بدون پولی
+
 //class Program
 //{
 //    private static readonly HttpClient _httpClient = new HttpClient();
 
 //    static async Task Main(string[] args)
 //    {
-//        string apiUrl = "https://jsonplaceholder.typicode.com/posts/1";
+//        string apiUrl = "https://jsonplaceholder.typicode.com/post/1";
 
 //        try
 //        {
@@ -126,7 +123,7 @@ using System.Threading.Tasks;
 //        }
 //        catch (BrokenCircuitException ex)
 //        {
-//            Console.WriteLine($"Error: {ex.Message}"); 
+//            Console.WriteLine($"Error: {ex.Message}");
 //            await Task.Delay(TimeSpan.FromSeconds(5)); // انتظار ۵ ثانیه
 
 //        }
@@ -222,7 +219,7 @@ using System.Threading.Tasks;
 
 //    static async Task Main(string[] args)
 //    {
-//        string apiUrl = "https://jsonplaceholder.typicode.com/posts/1";
+//        string apiUrl = "https://jsonplaceholder.typicode.com/post/1";
 
 //        // سیاست Retry: تلاش مجدد در صورت بروز خطا
 //        var retryPolicy = Policy
@@ -258,7 +255,7 @@ using System.Threading.Tasks;
 //        var fallbackPolicy = Policy<string>
 //            .Handle<Exception>()
 //            .FallbackAsync(
-//                fallbackValue: "{\"userId\": 1, \"id\": 1, \"title\": \"Fallback response\", \"body\": \"This is a fallback response.\"}",
+//                fallbackValue: "{\"userId\": 100, \"id\": 100, \"title\": \"Fallback response\", \"body\": \"This is a fallback response.\"}",
 //                onFallbackAsync: (exception, context) =>
 //                {
 //                    Console.WriteLine("Fallback executed due to an error: " + exception.Exception.Message);
@@ -315,7 +312,7 @@ using System.Threading.Tasks;
 
 //    static async Task Main(string[] args)
 //    {
-//        string apiUrl = "https://jsonplaceholder.typicode.com/posts/1";
+//        string apiUrl = "https://jsonplaceholder.typicode.com/post/1";
 
 //        // سیاست Retry: تلاش مجدد در صورت بروز خطا
 //        var retryPolicy = Policy
@@ -366,10 +363,11 @@ using System.Threading.Tasks;
 //        });
 
 //        // ترکیب پنج سیاست با هم
-//        var combinedPolicy = fallbackPolicy.WrapAsync(bulkheadPolicy)
-//                                           .WrapAsync(timeoutPolicy)
-//                                           .WrapAsync(circuitBreakerPolicy)
-//                                           .WrapAsync(retryPolicy);
+//        var combinedPolicy = bulkheadPolicy//retryPolicy.WrapAsync()
+//                                           //.WrapAsync(timeoutPolicy)
+//                                           //.WrapAsync(circuitBreakerPolicy)
+//                                          // .WrapAsync(retryPolicy)
+//                                           ;
 
 //        // ایجاد لیست Task‌ها برای اجرای موازی درخواست‌ها
 //        var tasks = new List<Task>();
@@ -393,6 +391,10 @@ using System.Threading.Tasks;
 //            {
 //                Console.WriteLine($"Request {requestNumber}: Sending HTTP request...");
 
+
+//                // اضافه کردن تأخیر مصنوعی برای مشاهده اجرای همزمان درخواست‌ها
+//                await Task.Delay(3000); // تأخیر ۳ ثانیه‌ای برای هر درخواست
+
 //                var response = await _httpClient.GetAsync(url);
 //                response.EnsureSuccessStatusCode();
 //                var content = await response.Content.ReadAsStringAsync();
@@ -411,17 +413,6 @@ using System.Threading.Tasks;
 //}
 #endregion
 #region 6
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Polly;
-using Polly.CircuitBreaker;
-using Polly.Retry;
-using Polly.Timeout;
-using Polly.Fallback;
-using Polly.Bulkhead;
-using Polly.Caching;
 using Polly.Caching.Memory;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -487,11 +478,19 @@ class Program
         var cachePolicy = Policy.CacheAsync<string>(cacheProvider, TimeSpan.FromMinutes(1));
 
         // ترکیب شش سیاست با هم
-        var combinedPolicy = fallbackPolicy.WrapAsync(cachePolicy)
-                                           .WrapAsync(bulkheadPolicy)
-                                           .WrapAsync(timeoutPolicy)
-                                           .WrapAsync(circuitBreakerPolicy)
-                                           .WrapAsync(retryPolicy);
+        // ترکیب شش سیاست با هم
+        var combinedPolicy = bulkheadPolicy//.WrapAsync(cachePolicy)
+                                           //.WrapAsync(bulkheadPolicy)
+                                           //.WrapAsync(timeoutPolicy)
+                                           //.WrapAsync(circuitBreakerPolicy)
+                                           //.WrapAsync(retryPolicy);
+                                           ;
+        //var combinedPolicy = cachePolicy//.WrapAsync(cachePolicy)
+                                        //.WrapAsync(bulkheadPolicy)
+                                        //.WrapAsync(timeoutPolicy)
+                                        //.WrapAsync(circuitBreakerPolicy)
+                                        //.WrapAsync(retryPolicy);
+                                           ;
 
         // اجرای چندین درخواست برای تست Cache Policy
         for (int i = 1; i <= 3; i++)
@@ -509,13 +508,14 @@ class Program
         {
             var result = await policy.ExecuteAsync(async (context) =>
             {
-                Console.WriteLine($"Request {requestNumber}: Sending HTTP request...");
+                    Console.WriteLine($"Request {requestNumber}: Sending HTTP request...");
 
-                var response = await _httpClient.GetAsync(url);
-                response.EnsureSuccessStatusCode();
-                var content = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Request {requestNumber}: Response received");
-                return content;
+                    var response = await _httpClient.GetAsync(url);
+                    response.EnsureSuccessStatusCode();
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Request {requestNumber}: Response received");
+                    return content;
+               
             }, new Context(url)); // Context برای مدیریت Cache Policy
 
             Console.WriteLine($"Request {requestNumber}: Result:");
